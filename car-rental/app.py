@@ -407,9 +407,15 @@ def create_app(test_config=None):
     @app.route("/reservations/<int:res_id>/cancel", methods=["POST"])
     @customer_required
     def cancel_reservation(res_id):
-        # TODO (UI-4.1): cancel the booking in res_id if it belongs to this customer and is upcoming.
-        # Only confirmed bookings that have not started can be cancelled; otherwise flash an error.
-        # After cancelling, the car must show up in search again. Flash a message and go back to My Rentals.
+        db = get_db()
+        b = my_reservation(db, res_id)
+        if not b["can_cancel"]:
+            flash("Only upcoming bookings can be cancelled.", "error")
+        else:
+            # search only blocks 'confirmed' bookings, so this frees the car straight away
+            db.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", (res_id,))
+            db.commit()
+            flash("Booking cancelled. The car is available again for those dates.", "success")
         return redirect(url_for("reservations"))
 
     # UI-7 Personal Data Control: view what is stored
