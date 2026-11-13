@@ -395,7 +395,7 @@ def create_app(test_config=None):
     @app.route("/reserve", methods=["POST"])
     @customer_required
     def reserve():
-                db = get_db()
+        db = get_db()
         car = db.execute("SELECT * FROM cars WHERE id = ?",
                          (request.form.get("car_id", type=int),)).fetchone()
         d1, d2, errors = parse_dates(request.form.get("pickup", ""), request.form.get("return", ""))
