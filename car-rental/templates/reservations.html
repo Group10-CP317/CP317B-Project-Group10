@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% from "_booking.html" import booking %}
+{% block title %}My Rentals{% endblock %}
+{% block content %}
+<div class="page-head"><h1>My Rentals</h1><p>Your current, upcoming and past bookings.</p></div>
+{# TODO (UI-5.1): show a message when there are no bookings, then a "Current and upcoming" list for active and a "Past and cancelled" list for past, using the booking macro #}
+{% endblock %}

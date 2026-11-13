@@ -113,3 +113,30 @@ input[aria-invalid=true],select[aria-invalid=true]{border-color:var(--err)}
   .cars li{grid-template-columns:1fr auto}.plate{grid-column:1/-1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Sprint 2: reservations, history and my data */
+.reserve{margin:0}
+.cars li{grid-template-columns:96px 1fr auto auto}
+.btn.danger{background:#fff;color:var(--err);border-color:var(--err)}
+.btn.danger:hover{background:var(--err);color:#fff;border-color:var(--err)}
+.btn.secondary{background:#fff;color:var(--spruce);text-decoration:none;display:inline-flex;align-items:center}
+.btn.secondary:hover{background:var(--fog)}
+.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+.facts{display:grid;grid-template-columns:130px 1fr;gap:10px 16px;margin:16px 0}
+.facts dt{color:var(--muted)}.facts dd{margin:0;font-weight:500}
+.total{font:500 1.6rem/1.2 var(--body);color:var(--spruce)}
+.bookings{list-style:none;margin:0 0 28px;padding:0;border-top:2px solid var(--spruce)}
+.bookings li{display:grid;grid-template-columns:1fr auto 150px;gap:16px;align-items:center;padding:16px 4px;border-bottom:1px solid var(--line)}
+.badge{display:inline-block;padding:3px 12px;border-radius:999px;font-weight:500;font-size:.9rem;border:1.5px solid var(--spruce);color:var(--spruce);background:#fff}
+.badge.upcoming{background:var(--taxi);border-color:var(--taxi)}
+.badge.current{background:var(--spruce);color:#fff}
+.badge.cancelled{border-color:var(--err);color:var(--err)}
+.badge.completed{border-color:var(--muted);color:var(--muted)}
+.danger-zone{margin-top:20px;border-color:#E2B3B6}
+.simple{margin-bottom:20px}
+@media (max-width:820px){
+  .cars li{grid-template-columns:1fr auto}
+  .bookings li{grid-template-columns:1fr auto}
+  .bookings li form,.bookings li > span:last-child{grid-column:1/-1}
+  .facts{grid-template-columns:1fr}
+}

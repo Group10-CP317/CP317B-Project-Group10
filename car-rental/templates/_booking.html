@@ -1,0 +1,12 @@
+{# one row in the rental history; the cancel button only shows for upcoming bookings #}
+{% macro booking(b) %}
+<li>
+  <div>
+    <div class="car-name">{{ b['make'] }} {{ b['model'] }}</div>
+    <div class="car-meta">{{ b['start_date'] }} to {{ b['end_date'] }} | {{ b['days'] }} day{{ 's' if b['days'] != 1 }} | ${{ '%.2f'|format(b['total']) }}</div>
+  </div>
+  <span class="badge {{ b['label']|lower }}">{{ b['label'] }}</span>
+  {# TODO (UI-4.2): show a Cancel booking button here for upcoming bookings (b.can_cancel), as a POST form with the csrf token #}
+  <span></span>
+</li>
+{% endmacro %}

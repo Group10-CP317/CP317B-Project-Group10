@@ -19,6 +19,8 @@
             <a href="{{ url_for('manager_home') }}" {% if request.endpoint == 'manager_home' %}aria-current="page"{% endif %}>Manager Home</a>
           {% else %}
             <a href="{{ url_for('search') }}" {% if request.endpoint == 'search' %}aria-current="page"{% endif %}>Search Cars</a>
+            <a href="{{ url_for('reservations') }}" {% if request.endpoint in ('reservations','reservation_detail') %}aria-current="page"{% endif %}>My Rentals</a>
+            <a href="{{ url_for('account') }}" {% if request.endpoint == 'account' %}aria-current="page"{% endif %}>My Data</a>
           {% endif %}
           <span class="who">{{ g.user['full_name'] }}</span>
           <form method="post" action="{{ url_for('logout') }}" class="inline">

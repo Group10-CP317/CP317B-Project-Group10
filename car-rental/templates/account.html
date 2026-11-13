@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}My Data{% endblock %}
+{% block content %}
+<div class="page-head"><h1>My Data</h1><p>This is everything we store about you.</p></div>
+{# TODO (UI-7.1): a "Your details" section listing name, email, phone, licence number, and a note that the password is stored as a hash #}
+{# TODO (UI-7.2): a "Delete my data" section with a form (POST to delete_account, csrf token) that asks for the password and a tick box named understand #}
+{% endblock %}
