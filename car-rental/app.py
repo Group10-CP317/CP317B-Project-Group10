@@ -376,10 +376,21 @@ def create_app(test_config=None):
     @app.route("/reserve/review")
     @customer_required
     def reserve_review():
-        # TODO (UI-3.2): show the Confirm Reservation page: car, dates, number of days and total price.
-        # Go back to search with an error if the car or dates are invalid or the car is already booked.
-        return redirect(url_for("search"))
-
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ?",
+                         (request.args.get("car_id", type=int),)).fetchone()
+        d1, d2, errors = parse_dates(request.args.get("pickup", ""), request.args.get("return", ""))
+        if car is None or errors:
+            flash("Choose a car and valid dates to reserve.", "error")
+            return redirect(url_for("search"))
+        if not car_is_free(db, car["id"], d1, d2):
+            flash("Sorry, that car is no longer available for those dates.", "error")
+            return redirect(url_for("search", car_type=car["car_type"], pickup=d1.isoformat(),
+                                    **{"return": d2.isoformat()}))
+        days = rental_days(d1, d2)
+        return render_template("reserve_review.html", car=car, pickup=d1, ret=d2, days=days,
+                               total=days * car["daily_rate"])
+  
     # UI-3 Reserve Car, step 2: save the booking
     @app.route("/reserve", methods=["POST"])
     @customer_required
