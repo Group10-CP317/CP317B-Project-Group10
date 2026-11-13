@@ -2,6 +2,15 @@
 {% block title %}My Data{% endblock %}
 {% block content %}
 <div class="page-head"><h1>My Data</h1><p>This is everything we store about you.</p></div>
-{# TODO (UI-7.1): a "Your details" section listing name, email, phone, licence number, and a note that the password is stored as a hash #}
+<section class="simple">
+  <h2>Your details</h2>
+  <dl class="facts">
+    <dt>Name</dt><dd>{{ g.user['full_name'] }}</dd>
+    <dt>Email</dt><dd>{{ g.user['email'] }}</dd>
+    <dt>Phone</dt><dd>{{ g.user['phone'] }}</dd>
+    <dt>Licence number</dt><dd>{{ g.user['licence_no'] }}</dd>
+    <dt>Password</dt><dd>Stored as a hash, we cannot read it</dd>
+  </dl>
+</section>
 {# TODO (UI-7.2): a "Delete my data" section with a form (POST to delete_account, csrf token) that asks for the password and a tick box named understand #}
 {% endblock %}
