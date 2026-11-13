@@ -12,5 +12,20 @@
     <dt>Password</dt><dd>Stored as a hash, we cannot read it</dd>
   </dl>
 </section>
-{# TODO (UI-7.2): a "Delete my data" section with a form (POST to delete_account, csrf token) that asks for the password and a tick box named understand #}
+<section class="simple danger-zone">
+  <h2>Delete my data</h2>
+  <p>This removes your name, email, phone number and licence number, and you will not be able to log in again. Upcoming bookings are cancelled. Past bookings stay in our records without your name. This cannot be undone.</p>
+  <form method="post" action="{{ url_for('delete_account') }}" novalidate>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="password">Enter your password to confirm</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field check">
+      <input id="understand" name="understand" type="checkbox">
+      <label for="understand">I understand my data will be deleted and this cannot be undone.</label>
+    </div>
+    <button class="btn danger" type="submit">Delete my data</button>
+  </form>
+</section>
 {% endblock %}
