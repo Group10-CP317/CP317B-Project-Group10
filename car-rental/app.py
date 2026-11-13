@@ -403,8 +403,7 @@ def create_app(test_config=None):
     @app.route("/reservations/<int:res_id>")
     @customer_required
     def reservation_detail(res_id):
-        # TODO (UI-3.4): show the confirmation page for one of this customer's own bookings.
-        return redirect(url_for("reservations"))
+        return render_template("reservation_detail.html", b=my_reservation(get_db(), res_id))
 
     # UI-5 Rental History: current and upcoming bookings first, then past and cancelled ones
     @app.route("/reservations")
