@@ -3,6 +3,17 @@
 {% block content %}
 <section class="simple">
   <h1>Reservation #{{ b['id'] }}</h1>
-  {# TODO (UI-3.4): status badge, car, pickup, return, length, total, and links to My Rentals and Search again #}
+  <p><span class="badge {{ b['label']|lower }}">{{ b['label'] }}</span></p>
+  <dl class="facts">
+    <dt>Car</dt><dd>{{ b['make'] }} {{ b['model'] }} ({{ b['car_type'] }})</dd>
+    <dt>Pickup</dt><dd>{{ b['start_date'] }}</dd>
+    <dt>Return</dt><dd>{{ b['end_date'] }}</dd>
+    <dt>Length</dt><dd>{{ b['days'] }} day{{ 's' if b['days'] != 1 }}</dd>
+    <dt>Total</dt><dd class="total">${{ '%.2f'|format(b['total']) }}</dd>
+  </dl>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('reservations') }}">View My Rentals</a>
+    <a class="btn secondary" href="{{ url_for('search') }}">Search again</a>
+  </div>
 </section>
 {% endblock %}
