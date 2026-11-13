@@ -423,10 +423,25 @@ def create_app(test_config=None):
     @app.route("/account/delete", methods=["POST"])
     @customer_required
     def delete_account():
-        # TODO (UI-7.2/7.3): require the tick box and the correct password, then cancel upcoming bookings,
-        # wipe the personal details on the user row (keep the row for old bookings), clear the session
-        # and send the customer to the login page with a message.
-        return redirect(url_for("account"))
+        if not request.form.get("understand"):
+            flash("Tick the box to confirm you want to delete your data.", "error")
+            return redirect(url_for("account"))
+        # asking for the password again stops someone using a logged-in screen to delete the account
+        if not check_password_hash(g.user["password_hash"], request.form.get("password", "")):
+            flash("Incorrect password. Your data was not deleted.", "error")
+            return redirect(url_for("account"))
+        db, uid = get_db(), g.user["id"]
+        # upcoming bookings are cancelled because we can no longer contact the customer
+        db.execute("UPDATE reservations SET status = 'cancelled' WHERE user_id = ? "
+                   "AND status = 'confirmed' AND start_date > ?", (uid, date.today().isoformat()))
+        db.execute(
+            """UPDATE users SET full_name = 'Deleted customer', email = ?, phone = '',
+               licence_no = '', password_hash = '!', failed_attempts = 0, locked_until = NULL
+               WHERE id = ?""", (f"deleted-{uid}@deleted.invalid", uid))  # '!' can never match a password
+        db.commit()
+        session.clear()
+        flash("Your personal data has been deleted.", "success")
+        return redirect(url_for("login"))
 
     # friendly pages for errors instead of the default plain ones
     @app.errorhandler(403)
