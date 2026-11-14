@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_booking.html" import booking %}
+{% block title %}My Rentals{% endblock %}
+{% block content %}
+<div class="page-head"><h1>My Rentals</h1><p>Your current, upcoming and past bookings.</p></div>
+{% if not active and not past %}
+  <div class="empty"><strong>No bookings yet</strong>Search for a car and reserve it to see it here. <a href="{{ url_for('search') }}">Search cars</a></div>
+{% endif %}
+{% if active %}
+<section class="results">
+  <h2>Current and upcoming</h2>
+  <ul class="bookings">{% for b in active %}{{ booking(b) }}{% endfor %}</ul>
+</section>
+{% endif %}
+{% if past %}
+<section class="results">
+  <h2>Past and cancelled</h2>
+  <ul class="bookings">{% for b in past %}{{ booking(b) }}{% endfor %}</ul>
+</section>
+{% endif %}
+{% endblock %}

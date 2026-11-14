@@ -1,0 +1,16 @@
+{# one row in the rental history; the cancel button only shows for upcoming bookings #}
+{% macro booking(b) %}
+<li>
+  <div>
+    <div class="car-name">{{ b['make'] }} {{ b['model'] }}</div>
+    <div class="car-meta">{{ b['start_date'] }} to {{ b['end_date'] }} | {{ b['days'] }} day{{ 's' if b['days'] != 1 }} | ${{ '%.2f'|format(b['total']) }}</div>
+  </div>
+  <span class="badge {{ b['label']|lower }}">{{ b['label'] }}</span>
+  {% if b['can_cancel'] %}
+  <form method="post" action="{{ url_for('cancel_reservation', res_id=b['id']) }}" class="reserve">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn danger" type="submit" aria-label="Cancel booking of {{ b['make'] }} {{ b['model'] }} starting {{ b['start_date'] }}">Cancel booking</button>
+  </form>
+  {% else %}<span></span>{% endif %}
+</li>
+{% endmacro %}

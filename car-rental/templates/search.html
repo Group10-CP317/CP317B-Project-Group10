@@ -35,8 +35,14 @@
         <li>
           <span class="plate">{{ c['car_type'] }}</span>
           <div><div class="car-name">{{ c['make'] }} {{ c['model'] }}</div>
-               <div class="car-meta">{{ c['seats'] }} seats</div></div>
-          <div class="price">${{ '%.0f'|format(c['daily_rate']) }}<small>per day</small></div>
+          <div class="car-meta">{{ c['seats'] }} seats</div></div>
+          {# sends the customer to the review page with this car and the searched dates #}
+          <form method="get" action="{{ url_for('reserve_review') }}" class="reserve">
+            <input type="hidden" name="car_id" value="{{ c['id'] }}">
+            <input type="hidden" name="pickup" value="{{ pickup }}">
+            <input type="hidden" name="return" value="{{ ret }}">
+            <button class="btn" type="submit" aria-label="Reserve {{ c['make'] }} {{ c['model'] }}">Reserve</button>
+          </form>
         </li>
         {% endfor %}
       </ul>

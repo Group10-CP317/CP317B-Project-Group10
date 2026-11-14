@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Confirm Reservation{% endblock %}
+{% block content %}
+<section class="simple">
+  <h1>Confirm Reservation</h1>
+  <dl class="facts">
+    <dt>Car</dt><dd>{{ car['make'] }} {{ car['model'] }} ({{ car['car_type'] }})</dd>
+    <dt>Pickup</dt><dd>{{ pickup.strftime('%b %d, %Y') }}</dd>
+    <dt>Return</dt><dd>{{ ret.strftime('%b %d, %Y') }}</dd>
+    <dt>Length</dt><dd>{{ days }} day{{ 's' if days != 1 }} at ${{ '%.0f'|format(car['daily_rate']) }} per day</dd>
+    <dt>Total</dt><dd class="total">${{ '%.2f'|format(total) }}</dd>
+  </dl>
+  <p class="muted">The return date counts as a rental day.</p>
+  <div class="actions">
+    <form method="post" action="{{ url_for('reserve') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="car_id" value="{{ car['id'] }}">
+      <input type="hidden" name="pickup" value="{{ pickup.isoformat() }}">
+      <input type="hidden" name="return" value="{{ ret.isoformat() }}">
+      <button class="btn" type="submit">Confirm reservation</button>
+    </form>
+    <a class="btn secondary" href="{{ url_for('search', car_type=car['car_type'], pickup=pickup.isoformat(), **{'return': ret.isoformat()}) }}">Back to results</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My Data{% endblock %}
+{% block content %}
+<div class="page-head"><h1>My Data</h1><p>This is everything we store about you.</p></div>
+<section class="simple">
+  <h2>Your details</h2>
+  <dl class="facts">
+    <dt>Name</dt><dd>{{ g.user['full_name'] }}</dd>
+    <dt>Email</dt><dd>{{ g.user['email'] }}</dd>
+    <dt>Phone</dt><dd>{{ g.user['phone'] }}</dd>
+    <dt>Licence number</dt><dd>{{ g.user['licence_no'] }}</dd>
+    <dt>Password</dt><dd>Stored as a hash, we cannot read it</dd>
+  </dl>
+</section>
+<section class="simple danger-zone">
+  <h2>Delete my data</h2>
+  <p>This removes your name, email, phone number and licence number, and you will not be able to log in again. Upcoming bookings are cancelled. Past bookings stay in our records without your name. This cannot be undone.</p>
+  <form method="post" action="{{ url_for('delete_account') }}" novalidate>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="password">Enter your password to confirm</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field check">
+      <input id="understand" name="understand" type="checkbox">
+      <label for="understand">I understand my data will be deleted and this cannot be undone.</label>
+    </div>
+    <button class="btn danger" type="submit">Delete my data</button>
+  </form>
+</section>
+{% endblock %}

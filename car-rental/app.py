@@ -146,6 +146,75 @@ def create_app(test_config=None):
             return view(*a, **kw)
         return wrapped
 
+    # decorator for the customer-only pages (reserve, history, my data); managers do not rent cars
+    def customer_required(view):
+        @wraps(view)
+        @login_required
+        def wrapped(*a, **kw):
+            if g.user["role"] != "customer":
+                return render_template("error.html", code=403, title="Access denied",
+                                       msg="This page is for customer accounts."), 403
+            return view(*a, **kw)
+        return wrapped
+
+    # ---------- Sprint 2 helpers ----------
+    # checks the pickup and return dates the same way for the search and the reservation
+    def parse_dates(pickup, ret):
+        errors, d1, d2 = {}, None, None
+        try:
+            d1 = date.fromisoformat(pickup)
+            if d1 < date.today():
+                errors["pickup"] = "Pickup date cannot be in the past."
+        except ValueError:
+            errors["pickup"] = "Choose a pickup date."
+        try:
+            d2 = date.fromisoformat(ret)
+        except ValueError:
+            errors["return"] = "Choose a return date."
+        if d1 and d2 and d2 < d1:
+            errors["return"] = "Return date must be on or after the pickup date."
+        return d1, d2, errors
+
+    # the same overlap rule the search uses: a car is taken if a confirmed booking overlaps the dates
+    def car_is_free(db, car_id, d1, d2):
+        taken = db.execute(
+            """SELECT 1 FROM reservations WHERE car_id = ? AND status = 'confirmed'
+               AND start_date <= ? AND end_date >= ?""",
+            (car_id, d2.isoformat(), d1.isoformat())).fetchone()
+        return taken is None
+
+    # the return date counts as a rental day, so 3rd to 5th is 3 days
+    def rental_days(d1, d2):
+        return (d2 - d1).days + 1
+
+    # turns a reservation row into a dict with the extra things the pages need
+    def describe(row):
+        b = dict(row)
+        today = date.today().isoformat()
+        if b["status"] == "cancelled":
+            b["label"] = "Cancelled"
+        elif b["end_date"] < today:
+            b["label"] = "Completed"
+        elif b["start_date"] > today:
+            b["label"] = "Upcoming"
+        else:
+            b["label"] = "Current"
+        b["days"] = rental_days(date.fromisoformat(b["start_date"]), date.fromisoformat(b["end_date"]))
+        b["total"] = b["days"] * b["daily_rate"]
+        b["can_cancel"] = b["label"] == "Upcoming"  # only bookings that have not started
+        return b
+
+    RES_SQL = """SELECT r.*, c.make, c.model, c.car_type, c.daily_rate
+                 FROM reservations r JOIN cars c ON c.id = r.car_id"""
+
+    # a customer can only open their own reservations (someone else's gives a 404)
+    def my_reservation(db, res_id):
+        row = db.execute(RES_SQL + " WHERE r.id = ? AND r.user_id = ?",
+                         (res_id, g.user["id"])).fetchone()
+        if row is None:
+            abort(404)
+        return describe(row)
+
     # managers and customers land on different pages after login
     def home_for(user):
         return url_for("manager_home") if user["role"] == "manager" else url_for("search")
@@ -303,11 +372,125 @@ def create_app(test_config=None):
                                searched=searched, car_type=car_type, pickup=pickup, ret=ret,
                                today=date.today().isoformat())
 
+    # UI-3 Reserve Car, step 1: the customer reviews the booking before confirming it
+    @app.route("/reserve/review")
+    @customer_required
+    def reserve_review():
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ?",
+                         (request.args.get("car_id", type=int),)).fetchone()
+        d1, d2, errors = parse_dates(request.args.get("pickup", ""), request.args.get("return", ""))
+        if car is None or errors:
+            flash("Choose a car and valid dates to reserve.", "error")
+            return redirect(url_for("search"))
+        if not car_is_free(db, car["id"], d1, d2):
+            flash("Sorry, that car is no longer available for those dates.", "error")
+            return redirect(url_for("search", car_type=car["car_type"], pickup=d1.isoformat(),
+                                    **{"return": d2.isoformat()}))
+        days = rental_days(d1, d2)
+        return render_template("reserve_review.html", car=car, pickup=d1, ret=d2, days=days,
+                               total=days * car["daily_rate"])
+  
+    # UI-3 Reserve Car, step 2: save the booking
+    @app.route("/reserve", methods=["POST"])
+    @customer_required
+    def reserve():
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ?",
+                         (request.form.get("car_id", type=int),)).fetchone()
+        d1, d2, errors = parse_dates(request.form.get("pickup", ""), request.form.get("return", ""))
+        if car is None or errors:
+            flash("That booking could not be made. Please search again.", "error")
+            return redirect(url_for("search"))
+        # BEGIN IMMEDIATE locks the database for writing, so if two customers confirm the same
+        # car at the same moment the second one sees the first booking and is turned away
+        db.execute("BEGIN IMMEDIATE")
+        if not car_is_free(db, car["id"], d1, d2):
+            db.rollback()
+            flash("Sorry, that car was just booked for those dates. Please choose another.", "error")
+            return redirect(url_for("search", car_type=car["car_type"], pickup=d1.isoformat(),
+                                    **{"return": d2.isoformat()}))
+        cur = db.execute(
+            "INSERT INTO reservations (user_id, car_id, start_date, end_date) VALUES (?,?,?,?)",
+            (g.user["id"], car["id"], d1.isoformat(), d2.isoformat()))
+        db.commit()
+        flash("Your reservation is confirmed.", "success")
+        return redirect(url_for("reservation_detail", res_id=cur.lastrowid))
+
+    # confirmation page shown after a booking (also used to look at a booking later)
+    @app.route("/reservations/<int:res_id>")
+    @customer_required
+    def reservation_detail(res_id):
+        return render_template("reservation_detail.html", b=my_reservation(get_db(), res_id))
+
+    # UI-5 Rental History: current and upcoming bookings first, then past and cancelled ones
+    @app.route("/reservations")
+    @customer_required
+    def reservations():
+        rows = get_db().execute(RES_SQL + " WHERE r.user_id = ?", (g.user["id"],)).fetchall()
+        bookings = [describe(r) for r in rows]
+        active = sorted([b for b in bookings if b["label"] in ("Current", "Upcoming")],
+                        key=lambda b: (b["start_date"], b["id"]))
+        past = sorted([b for b in bookings if b["label"] in ("Completed", "Cancelled")],
+                      key=lambda b: (b["start_date"], b["id"]), reverse=True)
+        return render_template("reservations.html", active=active, past=past)
+
+    # UI-4 Cancel Reservation: only the owner can cancel, and only before the pickup date
+    @app.route("/reservations/<int:res_id>/cancel", methods=["POST"])
+    @customer_required
+    def cancel_reservation(res_id):
+        db = get_db()
+        b = my_reservation(db, res_id)
+        if not b["can_cancel"]:
+            flash("Only upcoming bookings can be cancelled.", "error")
+        else:
+            # search only blocks 'confirmed' bookings, so this frees the car straight away
+            db.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", (res_id,))
+            db.commit()
+            flash("Booking cancelled. The car is available again for those dates.", "success")
+        return redirect(url_for("reservations"))
+
+    # UI-7 Personal Data Control: view what is stored
+    @app.route("/account")
+    @customer_required
+    def account():
+        return render_template("account.html")
+
+    # UI-7: delete personal data. I keep the user row because old reservations point to it,
+    # but every personal detail is wiped, so the kept rental records no longer identify anyone
+    @app.route("/account/delete", methods=["POST"])
+    @customer_required
+    def delete_account():
+        if not request.form.get("understand"):
+            flash("Tick the box to confirm you want to delete your data.", "error")
+            return redirect(url_for("account"))
+        # asking for the password again stops someone using a logged-in screen to delete the account
+        if not check_password_hash(g.user["password_hash"], request.form.get("password", "")):
+            flash("Incorrect password. Your data was not deleted.", "error")
+            return redirect(url_for("account"))
+        db, uid = get_db(), g.user["id"]
+        # upcoming bookings are cancelled because we can no longer contact the customer
+        db.execute("UPDATE reservations SET status = 'cancelled' WHERE user_id = ? "
+                   "AND status = 'confirmed' AND start_date > ?", (uid, date.today().isoformat()))
+        db.execute(
+            """UPDATE users SET full_name = 'Deleted customer', email = ?, phone = '',
+               licence_no = '', password_hash = '!', failed_attempts = 0, locked_until = NULL
+               WHERE id = ?""", (f"deleted-{uid}@deleted.invalid", uid))  # '!' can never match a password
+        db.commit()
+        session.clear()
+        flash("Your personal data has been deleted.", "success")
+        return redirect(url_for("login"))
+
     # friendly pages for errors instead of the default plain ones
     @app.errorhandler(403)
     def forbidden(_e):
         return render_template("error.html", code=403, title="Access denied",
                                msg="This page is for rental managers only."), 403
+
+    @app.errorhandler(404)
+    def not_found(_e):
+        return render_template("error.html", code=404, title="Page not found",
+                               msg="We could not find that page."), 404
 
     @app.errorhandler(400)
     def bad_request(e):
