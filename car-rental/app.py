@@ -427,9 +427,13 @@ def create_app(test_config=None):
     @app.route("/reservations")
     @customer_required
     def reservations():
-        # TODO (UI-5.1/5.2): load this customer's bookings, describe() each one, and split them into
-        # "active" (current and upcoming, earliest first) and "past" (completed and cancelled, newest first).
-        return render_template("reservations.html", active=[], past=[])
+        rows = get_db().execute(RES_SQL + " WHERE r.user_id = ?", (g.user["id"],)).fetchall()
+        bookings = [describe(r) for r in rows]
+        active = sorted([b for b in bookings if b["label"] in ("Current", "Upcoming")],
+                        key=lambda b: (b["start_date"], b["id"]))
+        past = sorted([b for b in bookings if b["label"] in ("Completed", "Cancelled")],
+                      key=lambda b: (b["start_date"], b["id"]), reverse=True)
+        return render_template("reservations.html", active=active, past=past)
 
     # UI-4 Cancel Reservation: only the owner can cancel, and only before the pickup date
     @app.route("/reservations/<int:res_id>/cancel", methods=["POST"])
