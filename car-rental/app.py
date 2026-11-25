@@ -359,17 +359,36 @@ def create_app(test_config=None):
             errors["daily_rate"] = "Enter a daily rate above 0, like 54.00."
         return vals, errors
 
-    # TODO (ADM-1.1 and ADM-1.2): fleet list page and add a car
+    # ADM-1 Manage Fleet: list every car
     @app.route("/manager/cars")
     @manager_required
     def fleet():
-        abort(501)  # TODO: list every car (removed ones last) with its open booking count, render manager_fleet.html
+        cars = get_db().execute(
+            """SELECT c.*, (SELECT COUNT(*) FROM reservations r WHERE r.car_id = c.id
+                            AND r.status = 'confirmed' AND r.end_date >= ?) AS open_bookings
+               FROM cars c ORDER BY c.active DESC, c.make, c.model""",
+            (date.today().isoformat(),)).fetchall()
+        return render_template("manager_fleet.html", cars=cars)
 
+    # ADM-1 add a car
     @app.route("/manager/cars/new", methods=["GET", "POST"])
     @manager_required
     def car_new():
-        abort(501)  # TODO: show the form on GET; on POST check it, insert the car, flash a message, go back to the fleet
+        form, errors = {}, {}
+        if request.method == "POST":
+            form, errors = check_car_form(request.form)
+            if not errors:
+                db = get_db()
+                db.execute("INSERT INTO cars (make, model, car_type, seats, daily_rate) VALUES (?,?,?,?,?)",
+                           (form["make"], form["model"], form["car_type"], int(form["seats"]),
+                            form["daily_rate"]))
+                db.commit()
+                flash("Car added to the fleet.", "success")
+                return redirect(url_for("fleet"))
+        return render_template("manager_car_form.html", form=form, errors=errors, car=None,
+                               car_types=CAR_TYPES)
 
+  
     # TODO (ADM-1.3 and ADM-1.4): edit a car and remove a car
     @app.route("/manager/cars/<int:car_id>/edit", methods=["GET", "POST"])
     @manager_required
