@@ -10,5 +10,10 @@
   <div><span class="num">{{ stats.reservations }}</span>active reservations</div>
   <div><span class="num">{{ stats.customers }}</span>registered customers</div>
 </div>
-<p class="note">Fleet management and reports arrive in Sprints 2 and 3.</p>
+<div class="actions">
+  <a class="btn secondary" href="{{ url_for('fleet') }}">Manage fleet</a>
+  <a class="btn secondary" href="{{ url_for('daily_rentals') }}">Daily rentals</a>
+  <a class="btn secondary" href="{{ url_for('usage_report') }}">Car usage report</a>
+  <a class="btn secondary" href="{{ url_for('preferences') }}">Customer preferences</a>
+</div>
 {% endblock %}

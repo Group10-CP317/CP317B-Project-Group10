@@ -67,6 +67,9 @@ def create_app(test_config=None):
         db = get_db()
         with open(os.path.join(BASE_DIR, "schema.sql")) as f:
             db.executescript(f.read())
+        # Sprint 3: older databases do not have the active column yet, so I add it once
+        if "active" not in [r["name"] for r in db.execute("PRAGMA table_info(cars)")]:
+            db.execute("ALTER TABLE cars ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
         # only add the demo manager if there is not one already
         if not db.execute("SELECT 1 FROM users WHERE role='manager'").fetchone():
             db.execute(
@@ -323,11 +326,78 @@ def create_app(test_config=None):
         # simple counts for the manager home page
         stats = {
             "customers": db.execute("SELECT COUNT(*) FROM users WHERE role='customer'").fetchone()[0],
-            "cars": db.execute("SELECT COUNT(*) FROM cars").fetchone()[0],
+            "cars": db.execute("SELECT COUNT(*) FROM cars WHERE active = 1").fetchone()[0],
             "reservations": db.execute(
                 "SELECT COUNT(*) FROM reservations WHERE status='confirmed'").fetchone()[0],
         }
         return render_template("manager_home.html", stats=stats)
+
+    # ---------- Sprint 3: fleet management and reports (manager only) ----------
+    def check_car_form(form):
+        # shared by add and edit: returns the cleaned values and any error messages
+        errors = {}
+        vals = {"make": form.get("make", "").strip(), "model": form.get("model", "").strip(),
+                "car_type": form.get("car_type", ""), "seats": form.get("seats", "").strip(),
+                "daily_rate": form.get("daily_rate", "").strip()}
+        if not vals["make"]:
+            errors["make"] = "Enter the make, like Toyota."
+        if not vals["model"]:
+            errors["model"] = "Enter the model, like Corolla."
+        if vals["car_type"] not in CAR_TYPES:
+            errors["car_type"] = "Choose a car type."
+        try:
+            if not 1 <= int(vals["seats"]) <= 15:
+                raise ValueError
+        except ValueError:
+            errors["seats"] = "Seats must be a whole number from 1 to 15."
+        try:
+            rate = round(float(vals["daily_rate"]), 2)
+            if not 0 < rate <= 2000:
+                raise ValueError
+            vals["daily_rate"] = rate
+        except ValueError:
+            errors["daily_rate"] = "Enter a daily rate above 0, like 54.00."
+        return vals, errors
+
+    # TODO (ADM-1.1 and ADM-1.2): fleet list page and add a car
+    @app.route("/manager/cars")
+    @manager_required
+    def fleet():
+        abort(501)  # TODO: list every car (removed ones last) with its open booking count, render manager_fleet.html
+
+    @app.route("/manager/cars/new", methods=["GET", "POST"])
+    @manager_required
+    def car_new():
+        abort(501)  # TODO: show the form on GET; on POST check it, insert the car, flash a message, go back to the fleet
+
+    # TODO (ADM-1.3 and ADM-1.4): edit a car and remove a car
+    @app.route("/manager/cars/<int:car_id>/edit", methods=["GET", "POST"])
+    @manager_required
+    def car_edit(car_id):
+        abort(501)  # TODO: show the form filled in on GET; on POST check it and update the car
+
+    @app.route("/manager/cars/<int:car_id>/remove", methods=["POST"])
+    @manager_required
+    def car_remove(car_id):
+        abort(501)  # TODO: retire the car (active = 0), but refuse if it has a current or upcoming booking
+
+    # TODO (REP-1): daily rentals report
+    @app.route("/manager/daily")
+    @manager_required
+    def daily_rentals():
+        abort(501)  # TODO: list the confirmed bookings that cover the chosen day, render manager_daily.html
+
+    # TODO (REP-2): car usage report
+    @app.route("/manager/usage")
+    @manager_required
+    def usage_report():
+        abort(501)  # TODO: days each car was rented inside the chosen date range, render manager_usage.html
+
+    # TODO (REP-3): customer preferences report
+    @app.route("/manager/preferences")
+    @manager_required
+    def preferences():
+        abort(501)  # TODO: bookings and average length by car type, plus the most booked cars, render manager_preferences.html
 
     # UI-2 Search Cars
     @app.route("/search")

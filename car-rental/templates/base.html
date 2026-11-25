@@ -17,6 +17,10 @@
         {% if g.user %}
           {% if g.user['role'] == 'manager' %}
             <a href="{{ url_for('manager_home') }}" {% if request.endpoint == 'manager_home' %}aria-current="page"{% endif %}>Manager Home</a>
+            <a href="{{ url_for('fleet') }}" {% if request.endpoint in ('fleet','car_new','car_edit') %}aria-current="page"{% endif %}>Fleet</a>
+            <a href="{{ url_for('daily_rentals') }}" {% if request.endpoint == 'daily_rentals' %}aria-current="page"{% endif %}>Daily Rentals</a>
+            <a href="{{ url_for('usage_report') }}" {% if request.endpoint == 'usage_report' %}aria-current="page"{% endif %}>Usage</a>
+            <a href="{{ url_for('preferences') }}" {% if request.endpoint == 'preferences' %}aria-current="page"{% endif %}>Preferences</a>
           {% else %}
             <a href="{{ url_for('search') }}" {% if request.endpoint == 'search' %}aria-current="page"{% endif %}>Search Cars</a>
             <a href="{{ url_for('reservations') }}" {% if request.endpoint in ('reservations','reservation_detail') %}aria-current="page"{% endif %}>My Rentals</a>
@@ -42,6 +46,6 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer>Meridian Car Rental | Group 10 | CP317B | Sprint 2 prototype</footer>
+  <footer>Meridian Car Rental | Group 10 | CP317B | Sprint 3 prototype</footer>
 </body>
 </html>
