@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Customer Preferences{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Customer Preferences</h1><p>What customers choose, from {{ total }} confirmed booking{{ '' if total == 1 else 's' }}.</p></div>
+{% if total == 0 %}
+  <div class="empty"><strong>No bookings yet</strong>Preferences appear once customers have reserved cars.</div>
+{% else %}
+<section class="results">
+  <h2>By car type</h2>
+  <div class="tablewrap"><table class="data">
+    <thead><tr><th>Car type</th><th class="num-col">Bookings</th><th class="num-col">Share</th><th class="num-col">Average rental (days)</th></tr></thead>
+    <tbody>{% for t in types %}<tr><td>{{ t.car_type }}</td><td class="num-col">{{ t.bookings }}</td><td class="num-col">{{ t.share }}%</td><td class="num-col">{{ t.avg_days }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<section class="results" style="margin-top:28px">
+  <h2>Most booked cars</h2>
+  <div class="tablewrap"><table class="data">
+    <thead><tr><th>Car</th><th>Type</th><th class="num-col">Bookings</th></tr></thead>
+    <tbody>{% for c in cars %}<tr><td>{{ c['make'] }} {{ c['model'] }}</td><td>{{ c['car_type'] }}</td><td class="num-col">{{ c['bookings'] }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}
