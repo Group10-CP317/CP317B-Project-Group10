@@ -67,6 +67,9 @@ def create_app(test_config=None):
         db = get_db()
         with open(os.path.join(BASE_DIR, "schema.sql")) as f:
             db.executescript(f.read())
+        # Sprint 3: older databases do not have the active column yet, so I add it once
+        if "active" not in [r["name"] for r in db.execute("PRAGMA table_info(cars)")]:
+            db.execute("ALTER TABLE cars ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
         # only add the demo manager if there is not one already
         if not db.execute("SELECT 1 FROM users WHERE role='manager'").fetchone():
             db.execute(
@@ -323,11 +326,190 @@ def create_app(test_config=None):
         # simple counts for the manager home page
         stats = {
             "customers": db.execute("SELECT COUNT(*) FROM users WHERE role='customer'").fetchone()[0],
-            "cars": db.execute("SELECT COUNT(*) FROM cars").fetchone()[0],
+            "cars": db.execute("SELECT COUNT(*) FROM cars WHERE active = 1").fetchone()[0],
             "reservations": db.execute(
                 "SELECT COUNT(*) FROM reservations WHERE status='confirmed'").fetchone()[0],
         }
         return render_template("manager_home.html", stats=stats)
+
+    # ---------- Sprint 3: fleet management and reports (manager only) ----------
+    def check_car_form(form):
+        # shared by add and edit: returns the cleaned values and any error messages
+        errors = {}
+        vals = {"make": form.get("make", "").strip(), "model": form.get("model", "").strip(),
+                "car_type": form.get("car_type", ""), "seats": form.get("seats", "").strip(),
+                "daily_rate": form.get("daily_rate", "").strip()}
+        if not vals["make"]:
+            errors["make"] = "Enter the make, like Toyota."
+        if not vals["model"]:
+            errors["model"] = "Enter the model, like Corolla."
+        if vals["car_type"] not in CAR_TYPES:
+            errors["car_type"] = "Choose a car type."
+        try:
+            if not 1 <= int(vals["seats"]) <= 15:
+                raise ValueError
+        except ValueError:
+            errors["seats"] = "Seats must be a whole number from 1 to 15."
+        try:
+            rate = round(float(vals["daily_rate"]), 2)
+            if not 0 < rate <= 2000:
+                raise ValueError
+            vals["daily_rate"] = rate
+        except ValueError:
+            errors["daily_rate"] = "Enter a daily rate above 0, like 54.00."
+        return vals, errors
+
+    # ADM-1 Manage Fleet: list every car
+    @app.route("/manager/cars")
+    @manager_required
+    def fleet():
+        cars = get_db().execute(
+            """SELECT c.*, (SELECT COUNT(*) FROM reservations r WHERE r.car_id = c.id
+                            AND r.status = 'confirmed' AND r.end_date >= ?) AS open_bookings
+               FROM cars c ORDER BY c.active DESC, c.make, c.model""",
+            (date.today().isoformat(),)).fetchall()
+        return render_template("manager_fleet.html", cars=cars)
+
+    # ADM-1 add a car
+    @app.route("/manager/cars/new", methods=["GET", "POST"])
+    @manager_required
+    def car_new():
+        form, errors = {}, {}
+        if request.method == "POST":
+            form, errors = check_car_form(request.form)
+            if not errors:
+                db = get_db()
+                db.execute("INSERT INTO cars (make, model, car_type, seats, daily_rate) VALUES (?,?,?,?,?)",
+                           (form["make"], form["model"], form["car_type"], int(form["seats"]),
+                            form["daily_rate"]))
+                db.commit()
+                flash("Car added to the fleet.", "success")
+                return redirect(url_for("fleet"))
+        return render_template("manager_car_form.html", form=form, errors=errors, car=None,
+                               car_types=CAR_TYPES)
+
+
+    # ADM-1.4: edit a car
+
+    @app.route("/manager/cars/<int:car_id>/edit", methods=["GET", "POST"])
+    @manager_required
+    def car_edit(car_id):
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1", (car_id,)).fetchone()
+        if car is None:
+            abort(404)
+        form, errors = dict(car), {}
+        if request.method == "POST":
+            form, errors = check_car_form(request.form)
+            if not errors:
+                db.execute("UPDATE cars SET make=?, model=?, car_type=?, seats=?, daily_rate=? WHERE id=?",
+                           (form["make"], form["model"], form["car_type"], int(form["seats"]),
+                            form["daily_rate"], car_id))
+                db.commit()
+                flash("Car updated.", "success")
+                return redirect(url_for("fleet"))
+        return render_template("manager_car_form.html", form=form, errors=errors, car=car,
+                               car_types=CAR_TYPES)
+
+    # ADM-1.5: retire the car so past reservations retain its details
+    @app.route("/manager/cars/<int:car_id>/remove", methods=["POST"])
+    @manager_required
+    def car_remove(car_id):
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1", (car_id,)).fetchone()
+        if car is None:
+            abort(404)
+        open_bookings = db.execute(
+            "SELECT COUNT(*) FROM reservations WHERE car_id = ? AND status = 'confirmed' AND end_date >= ?",
+            (car_id, date.today().isoformat())).fetchone()[0]
+        if open_bookings:
+            flash(f"The {car['make']} {car['model']} has {open_bookings} current or upcoming "
+                  f"booking(s), so it cannot be removed yet.", "error")
+        else:
+            db.execute("UPDATE cars SET active = 0 WHERE id = ?", (car_id,))
+            db.commit()
+            flash(f"The {car['make']} {car['model']} was removed from the fleet.", "success")
+        return redirect(url_for("fleet"))
+
+    # REP-1 Daily Rentals: who has a car on a chosen day
+    @app.route("/manager/daily")
+    @manager_required
+    def daily_rentals():
+        raw = request.args.get("date", "")
+        error = ""
+        try:
+            day = date.fromisoformat(raw) if raw else date.today()
+        except ValueError:
+            day, error = date.today(), "That date is not valid, so today is shown."
+        rows = get_db().execute(
+            """SELECT r.id, r.start_date, r.end_date, u.full_name, u.phone, c.make, c.model, c.car_type
+               FROM reservations r JOIN users u ON u.id = r.user_id JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' AND r.start_date <= ? AND r.end_date >= ?
+               ORDER BY c.make, c.model, r.start_date""", (day.isoformat(), day.isoformat())).fetchall()
+        rentals = []
+        for r in rows:
+            note = ("Pickup today" if r["start_date"] == day.isoformat()
+                    else "Return today" if r["end_date"] == day.isoformat() else "On rental")
+            rentals.append({**dict(r), "note": note})
+        return render_template("manager_daily.html", day=day, rentals=rentals, error=error)
+
+    # REP-2 Car Usage Report: days rented per car in a date range
+    @app.route("/manager/usage")
+    @manager_required
+    def usage_report():
+        today = date.today()
+        errors = {}
+        try:
+            start = date.fromisoformat(request.args.get("from", "")) if request.args.get("from") \
+                else today - timedelta(days=29)
+        except ValueError:
+            start, errors["from"] = today - timedelta(days=29), "Enter a valid start date."
+        try:
+            end = date.fromisoformat(request.args.get("to", "")) if request.args.get("to") else today
+        except ValueError:
+            end, errors["to"] = today, "Enter a valid end date."
+        if not errors and end < start:
+            errors["to"] = "The end date must be on or after the start date."
+            start, end = today - timedelta(days=29), today
+        period = (end - start).days + 1
+        rows = []
+        for c in get_db().execute("SELECT * FROM cars ORDER BY make, model").fetchall():
+            booked = 0
+            n = 0
+            for r in get_db().execute(
+                    "SELECT start_date, end_date FROM reservations WHERE car_id = ? AND status = 'confirmed' "
+                    "AND start_date <= ? AND end_date >= ?", (c["id"], end.isoformat(), start.isoformat())):
+                # only count the days that fall inside the chosen range
+                s = max(date.fromisoformat(r["start_date"]), start)
+                e = min(date.fromisoformat(r["end_date"]), end)
+                booked += (e - s).days + 1
+                n += 1
+            if c["active"] or n:  # a retired car only appears if it was rented in this range
+                rows.append({"car": c, "bookings": n, "days": booked,
+                             "pct": round(100 * booked / period)})
+        rows.sort(key=lambda x: (-x["days"], x["car"]["make"]))
+        return render_template("manager_usage.html", rows=rows, start=start, end=end, period=period,
+                               errors=errors, total_days=sum(x["days"] for x in rows))
+
+    # REP-3 Customer Preferences: which cars and car types customers choose
+    @app.route("/manager/preferences")
+    @manager_required
+    def preferences():
+        db = get_db()
+        by_type = db.execute(
+            """SELECT c.car_type, COUNT(*) AS bookings,
+                      AVG(julianday(r.end_date) - julianday(r.start_date) + 1) AS avg_days
+               FROM reservations r JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' GROUP BY c.car_type ORDER BY bookings DESC, c.car_type""").fetchall()
+        by_car = db.execute(
+            """SELECT c.make, c.model, c.car_type, COUNT(*) AS bookings
+               FROM reservations r JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' GROUP BY c.id ORDER BY bookings DESC, c.make LIMIT 5""").fetchall()
+        total = sum(t["bookings"] for t in by_type)
+        types = [{"car_type": t["car_type"], "bookings": t["bookings"],
+                  "share": round(100 * t["bookings"] / total), "avg_days": round(t["avg_days"], 1)}
+                 for t in by_type]
+        return render_template("manager_preferences.html", types=types, cars=by_car, total=total)
 
     # UI-2 Search Cars
     @app.route("/search")
@@ -362,7 +544,7 @@ def create_app(test_config=None):
             # Two ranges overlap when start <= other end AND end >= other start.
             if not errors:
                 cars = get_db().execute(
-                    """SELECT * FROM cars c WHERE c.car_type = ? AND NOT EXISTS (
+                    """SELECT * FROM cars c WHERE c.car_type = ? AND c.active = 1 AND NOT EXISTS (
                            SELECT 1 FROM reservations r
                            WHERE r.car_id = c.id AND r.status = 'confirmed'
                              AND r.start_date <= ? AND r.end_date >= ?)
@@ -377,7 +559,7 @@ def create_app(test_config=None):
     @customer_required
     def reserve_review():
         db = get_db()
-        car = db.execute("SELECT * FROM cars WHERE id = ?",
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1",
                          (request.args.get("car_id", type=int),)).fetchone()
         d1, d2, errors = parse_dates(request.args.get("pickup", ""), request.args.get("return", ""))
         if car is None or errors:
@@ -396,7 +578,7 @@ def create_app(test_config=None):
     @customer_required
     def reserve():
         db = get_db()
-        car = db.execute("SELECT * FROM cars WHERE id = ?",
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1",
                          (request.form.get("car_id", type=int),)).fetchone()
         d1, d2, errors = parse_dates(request.form.get("pickup", ""), request.form.get("return", ""))
         if car is None or errors:

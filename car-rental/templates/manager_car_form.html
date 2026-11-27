@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_field.html" import field %}
+{% block title %}{{ 'Edit car' if car else 'Add a car' }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ 'Edit car' if car else 'Add a car' }}</h1></div>
+<form method="post" novalidate>
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {{ field('make', 'Make', value=form.get('make', ''), errors=errors) }}
+  {{ field('model', 'Model', value=form.get('model', ''), errors=errors) }}
+  <div class="field">
+    <label for="car_type">Car type</label>
+    <select id="car_type" name="car_type" required {% if errors.get('car_type') %}aria-invalid="true" aria-describedby="car_type-err"{% endif %}>
+      <option value="">Choose a type</option>
+      {% for t in car_types %}<option value="{{ t }}" {% if form.get('car_type') == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+    {% if errors.get('car_type') %}<span class="err" id="car_type-err">{{ errors['car_type'] }}</span>{% endif %}
+  </div>
+  {{ field('seats', 'Seats', type='number', value=form.get('seats', ''), errors=errors) }}
+  {{ field('daily_rate', 'Daily rate ($)', type='text', value=form.get('daily_rate', ''), errors=errors, hint='For example 54.00') }}
+  <div class="actions">
+    <button class="btn" type="submit">{{ 'Save changes' if car else 'Add car' }}</button>
+    <a class="btn secondary" href="{{ url_for('fleet') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
