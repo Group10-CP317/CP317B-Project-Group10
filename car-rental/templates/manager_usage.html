@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Car Usage Report{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Car Usage Report</h1><p>Days each car was rented, from {{ start.isoformat() }} to {{ end.isoformat() }} ({{ period }} days).</p></div>
+{% for m in errors.values() %}<div class="flash error" role="alert">{{ m }}</div>{% endfor %}
+<form method="get" class="filter">
+  <div class="field"><label for="from">From</label><input id="from" name="from" type="date" value="{{ start.isoformat() }}"></div>
+  <div class="field"><label for="to">To</label><input id="to" name="to" type="date" value="{{ end.isoformat() }}"></div>
+  <button class="btn" type="submit">Show report</button>
+</form>
+{% if total_days == 0 %}
+  <div class="empty"><strong>No rentals in this range</strong>Try a wider date range.</div>
+{% endif %}
+<div class="tablewrap"><table class="data">
+  <thead><tr><th>Car</th><th>Type</th><th class="num-col">Bookings</th><th class="num-col">Days rented</th><th class="num-col">Usage</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr {% if not r.car['active'] %}class="retired"{% endif %}>
+      <td>{{ r.car['make'] }} {{ r.car['model'] }}{% if not r.car['active'] %} (removed){% endif %}</td><td>{{ r.car['car_type'] }}</td>
+      <td class="num-col">{{ r.bookings }}</td><td class="num-col">{{ r.days }}</td><td class="num-col">{{ r.pct }}%</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}
