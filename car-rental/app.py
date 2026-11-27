@@ -467,7 +467,7 @@ def create_app(test_config=None):
             # Two ranges overlap when start <= other end AND end >= other start.
             if not errors:
                 cars = get_db().execute(
-                    """SELECT * FROM cars c WHERE c.car_type = ? AND NOT EXISTS (
+                    """SELECT * FROM cars c WHERE c.car_type = ? AND c.active = 1 AND NOT EXISTS (
                            SELECT 1 FROM reservations r
                            WHERE r.car_id = c.id AND r.status = 'confirmed'
                              AND r.start_date <= ? AND r.end_date >= ?)
@@ -482,7 +482,7 @@ def create_app(test_config=None):
     @customer_required
     def reserve_review():
         db = get_db()
-        car = db.execute("SELECT * FROM cars WHERE id = ?",
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1",
                          (request.args.get("car_id", type=int),)).fetchone()
         d1, d2, errors = parse_dates(request.args.get("pickup", ""), request.args.get("return", ""))
         if car is None or errors:
@@ -501,7 +501,7 @@ def create_app(test_config=None):
     @customer_required
     def reserve():
         db = get_db()
-        car = db.execute("SELECT * FROM cars WHERE id = ?",
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1",
                          (request.form.get("car_id", type=int),)).fetchone()
         d1, d2, errors = parse_dates(request.form.get("pickup", ""), request.form.get("return", ""))
         if car is None or errors:
