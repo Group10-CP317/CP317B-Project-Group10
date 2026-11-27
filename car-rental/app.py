@@ -381,11 +381,27 @@ def create_app(test_config=None):
     def car_remove(car_id):
         abort(501)  # TODO: retire the car (active = 0), but refuse if it has a current or upcoming booking
 
-    # TODO (REP-1): daily rentals report
+    # REP-1 Daily Rentals: who has a car on a chosen day
     @app.route("/manager/daily")
     @manager_required
     def daily_rentals():
-        abort(501)  # TODO: list the confirmed bookings that cover the chosen day, render manager_daily.html
+        raw = request.args.get("date", "")
+        error = ""
+        try:
+            day = date.fromisoformat(raw) if raw else date.today()
+        except ValueError:
+            day, error = date.today(), "That date is not valid, so today is shown."
+        rows = get_db().execute(
+            """SELECT r.id, r.start_date, r.end_date, u.full_name, u.phone, c.make, c.model, c.car_type
+               FROM reservations r JOIN users u ON u.id = r.user_id JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' AND r.start_date <= ? AND r.end_date >= ?
+               ORDER BY c.make, c.model, r.start_date""", (day.isoformat(), day.isoformat())).fetchall()
+        rentals = []
+        for r in rows:
+            note = ("Pickup today" if r["start_date"] == day.isoformat()
+                    else "Return today" if r["end_date"] == day.isoformat() else "On rental")
+            rentals.append({**dict(r), "note": note})
+        return render_template("manager_daily.html", day=day, rentals=rentals, error=error)
 
     # TODO (REP-2): car usage report
     @app.route("/manager/usage")
