@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Manage Fleet{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Manage Fleet</h1><p>Add, edit or remove the cars customers can rent.</p></div>
+<div class="actions"><a class="btn" href="{{ url_for('car_new') }}">Add a car</a></div>
+<div class="tablewrap"><table class="data">
+  <caption class="sr-only">Cars in the fleet</caption>
+  <thead><tr><th>Car</th><th>Type</th><th>Seats</th><th class="num-col">Daily rate</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for c in cars %}
+    <tr {% if not c['active'] %}class="retired"{% endif %}>
+      <td>{{ c['make'] }} {{ c['model'] }}</td><td>{{ c['car_type'] }}</td><td>{{ c['seats'] }}</td>
+      <td class="num-col">${{ '%.2f' % c['daily_rate'] }}</td>
+      <td>{% if c['active'] %}In fleet{% else %}Removed{% endif %}</td>
+      <td>
+        {% if c['active'] %}
+          <a href="{{ url_for('car_edit', car_id=c['id']) }}">Edit<span class="sr-only"> {{ c['make'] }} {{ c['model'] }}</span></a>
+          <form method="post" action="{{ url_for('car_remove', car_id=c['id']) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn danger" type="submit" aria-label="Remove {{ c['make'] }} {{ c['model'] }}">Remove</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}
