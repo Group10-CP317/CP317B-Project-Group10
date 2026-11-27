@@ -387,11 +387,43 @@ def create_app(test_config=None):
     def daily_rentals():
         abort(501)  # TODO: list the confirmed bookings that cover the chosen day, render manager_daily.html
 
-    # TODO (REP-2): car usage report
+    # REP-2 Car Usage Report: days rented per car in a date range
     @app.route("/manager/usage")
     @manager_required
     def usage_report():
-        abort(501)  # TODO: days each car was rented inside the chosen date range, render manager_usage.html
+        today = date.today()
+        errors = {}
+        try:
+            start = date.fromisoformat(request.args.get("from", "")) if request.args.get("from") \
+                else today - timedelta(days=29)
+        except ValueError:
+            start, errors["from"] = today - timedelta(days=29), "Enter a valid start date."
+        try:
+            end = date.fromisoformat(request.args.get("to", "")) if request.args.get("to") else today
+        except ValueError:
+            end, errors["to"] = today, "Enter a valid end date."
+        if not errors and end < start:
+            errors["to"] = "The end date must be on or after the start date."
+            start, end = today - timedelta(days=29), today
+        period = (end - start).days + 1
+        rows = []
+        for c in get_db().execute("SELECT * FROM cars ORDER BY make, model").fetchall():
+            booked = 0
+            n = 0
+            for r in get_db().execute(
+                    "SELECT start_date, end_date FROM reservations WHERE car_id = ? AND status = 'confirmed' "
+                    "AND start_date <= ? AND end_date >= ?", (c["id"], end.isoformat(), start.isoformat())):
+                # only count the days that fall inside the chosen range
+                s = max(date.fromisoformat(r["start_date"]), start)
+                e = min(date.fromisoformat(r["end_date"]), end)
+                booked += (e - s).days + 1
+                n += 1
+            if c["active"] or n:  # a retired car only appears if it was rented in this range
+                rows.append({"car": c, "bookings": n, "days": booked,
+                             "pct": round(100 * booked / period)})
+        rows.sort(key=lambda x: (-x["days"], x["car"]["make"]))
+        return render_template("manager_usage.html", rows=rows, start=start, end=end, period=period,
+                               errors=errors, total_days=sum(x["days"] for x in rows))
 
     # TODO (REP-3): customer preferences report
     @app.route("/manager/preferences")
