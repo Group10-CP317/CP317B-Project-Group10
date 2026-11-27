@@ -388,17 +388,48 @@ def create_app(test_config=None):
         return render_template("manager_car_form.html", form=form, errors=errors, car=None,
                                car_types=CAR_TYPES)
 
-  
-    # TODO (ADM-1.3 and ADM-1.4): edit a car and remove a car
+
+    # ADM-1.4: edit a car
+
     @app.route("/manager/cars/<int:car_id>/edit", methods=["GET", "POST"])
     @manager_required
     def car_edit(car_id):
-        abort(501)  # TODO: show the form filled in on GET; on POST check it and update the car
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1", (car_id,)).fetchone()
+        if car is None:
+            abort(404)
+        form, errors = dict(car), {}
+        if request.method == "POST":
+            form, errors = check_car_form(request.form)
+            if not errors:
+                db.execute("UPDATE cars SET make=?, model=?, car_type=?, seats=?, daily_rate=? WHERE id=?",
+                           (form["make"], form["model"], form["car_type"], int(form["seats"]),
+                            form["daily_rate"], car_id))
+                db.commit()
+                flash("Car updated.", "success")
+                return redirect(url_for("fleet"))
+        return render_template("manager_car_form.html", form=form, errors=errors, car=car,
+                               car_types=CAR_TYPES)
 
+    # ADM-1.5: retire the car so past reservations retain its details
     @app.route("/manager/cars/<int:car_id>/remove", methods=["POST"])
     @manager_required
     def car_remove(car_id):
-        abort(501)  # TODO: retire the car (active = 0), but refuse if it has a current or upcoming booking
+        db = get_db()
+        car = db.execute("SELECT * FROM cars WHERE id = ? AND active = 1", (car_id,)).fetchone()
+        if car is None:
+            abort(404)
+        open_bookings = db.execute(
+            "SELECT COUNT(*) FROM reservations WHERE car_id = ? AND status = 'confirmed' AND end_date >= ?",
+            (car_id, date.today().isoformat())).fetchone()[0]
+        if open_bookings:
+            flash(f"The {car['make']} {car['model']} has {open_bookings} current or upcoming "
+                  f"booking(s), so it cannot be removed yet.", "error")
+        else:
+            db.execute("UPDATE cars SET active = 0 WHERE id = ?", (car_id,))
+            db.commit()
+            flash(f"The {car['make']} {car['model']} was removed from the fleet.", "success")
+        return redirect(url_for("fleet"))
 
     # REP-1 Daily Rentals: who has a car on a chosen day
     @app.route("/manager/daily")
