@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Daily Rentals{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Daily Rentals</h1><p>Cars out on {{ day.strftime('%A, %B %d, %Y').replace(' 0', ' ') }}.</p></div>
+{% if error %}<div class="flash error" role="alert">{{ error }}</div>{% endif %}
+<form method="get" class="filter">
+  <div class="field"><label for="date">Date</label><input id="date" name="date" type="date" value="{{ day.isoformat() }}"></div>
+  <button class="btn" type="submit">Show</button>
+</form>
+{% if not rentals %}
+  <div class="empty"><strong>No rentals on this day</strong>No confirmed bookings cover {{ day.isoformat() }}.</div>
+{% else %}
+<p>{{ rentals|length }} car{{ '' if rentals|length == 1 else 's' }} out.</p>
+<div class="tablewrap"><table class="data">
+  <thead><tr><th>Car</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Return</th><th>Today</th></tr></thead>
+  <tbody>
+  {% for r in rentals %}
+    <tr><td>{{ r['make'] }} {{ r['model'] }} ({{ r['car_type'] }})</td><td>{{ r['full_name'] }}</td><td>{{ r['phone'] }}</td>
+        <td>{{ r['start_date'] }}</td><td>{{ r['end_date'] }}</td><td>{{ r['note'] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endblock %}
