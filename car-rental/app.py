@@ -460,11 +460,25 @@ def create_app(test_config=None):
         return render_template("manager_usage.html", rows=rows, start=start, end=end, period=period,
                                errors=errors, total_days=sum(x["days"] for x in rows))
 
-    # TODO (REP-3): customer preferences report
+    # REP-3 Customer Preferences: which cars and car types customers choose
     @app.route("/manager/preferences")
     @manager_required
     def preferences():
-        abort(501)  # TODO: bookings and average length by car type, plus the most booked cars, render manager_preferences.html
+        db = get_db()
+        by_type = db.execute(
+            """SELECT c.car_type, COUNT(*) AS bookings,
+                      AVG(julianday(r.end_date) - julianday(r.start_date) + 1) AS avg_days
+               FROM reservations r JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' GROUP BY c.car_type ORDER BY bookings DESC, c.car_type""").fetchall()
+        by_car = db.execute(
+            """SELECT c.make, c.model, c.car_type, COUNT(*) AS bookings
+               FROM reservations r JOIN cars c ON c.id = r.car_id
+               WHERE r.status = 'confirmed' GROUP BY c.id ORDER BY bookings DESC, c.make LIMIT 5""").fetchall()
+        total = sum(t["bookings"] for t in by_type)
+        types = [{"car_type": t["car_type"], "bookings": t["bookings"],
+                  "share": round(100 * t["bookings"] / total), "avg_days": round(t["avg_days"], 1)}
+                 for t in by_type]
+        return render_template("manager_preferences.html", types=types, cars=by_car, total=total)
 
     # UI-2 Search Cars
     @app.route("/search")
